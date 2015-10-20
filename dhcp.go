@@ -20,7 +20,7 @@ type DHCPPacket struct {
 	ServerIP net.IP
 }
 
-func ServeProxyDHCP(port int, booter Booter) error {
+func ServeProxyDHCP(port int, booter *coreOSBooter) error {
 	conn, err := net.ListenPacket("udp4", fmt.Sprintf(":%d", port))
 	if err != nil {
 		return err
@@ -49,10 +49,11 @@ func ServeProxyDHCP(port int, booter Booter) error {
 			continue
 		}
 
-		if err = booter.ShouldBoot(req.MAC); err != nil {
-			Debug("ProxyDHCP", "Not offering to boot %s: %s", req.MAC, err)
-			continue
-		}
+// TODO: Do we need the ShouldBoot mechanism?
+//		if err = booter.ShouldBoot(req.MAC); err != nil {
+//			Debug("ProxyDHCP", "Not offering to boot %s: %s", req.MAC, err)
+//			continue
+//		}
 
 		req.ServerIP, err = interfaceIP(msg.IfIndex)
 		if err != nil {

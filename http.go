@@ -29,7 +29,7 @@ const limerick = `
 `
 
 type httpServer struct {
-	booter  Booter
+	booter  *coreOSBooter
 	ldlinux []byte
 	key     [32]byte // to sign URLs
 	port    int
@@ -80,25 +80,26 @@ DEFAULT linux
 LABEL linux
 LINUX %s
 APPEND initrd=%s %s
-`, strings.Replace(limerick, "\n", "\nSAY ", -1), spec.Kernel, strings.Join(spec.Initrd, ","), spec.Cmdline)
+`, strings.Replace(limerick, "\n", "\nSAY ", -1), spec.Kernel, spec.Initrd, spec.Cmdline)
 
 	w.Write([]byte(cfg))
 	Log("HTTP", "Sent pxelinux config to %s (%s)", mac, r.RemoteAddr)
 }
 
 func (s *httpServer) File(w http.ResponseWriter, r *http.Request) {
-	id := filepath.Base(r.URL.Path)
+	splitPath := strings.SplitN(r.URL.Path, "/", 2)
+	id := splitPath[1]
+
+	Debug("HTTP", "Request for id=%s (splitPath=%q)", id, splitPath)
 
 	var (
 		f      io.ReadCloser
 		pretty string
 		err    error
 	)
-	if r.Method == "POST" {
-		f, pretty, err = s.booter.Write(id, r.Body)
-	} else {
-		f, pretty, err = s.booter.Read(id)
-	}
+
+	f, pretty, err = s.booter.Read(id)
+
 	if err != nil {
 		Log("HTTP", "Couldn't get byte stream for %q from %s: %s", r.URL, r.RemoteAddr, err)
 		http.Error(w, "Couldn't get byte stream", http.StatusInternalServerError)
@@ -115,7 +116,7 @@ func (s *httpServer) File(w http.ResponseWriter, r *http.Request) {
 	Log("HTTP", "Sent %s to %s (%d bytes)", pretty, r.RemoteAddr, written)
 }
 
-func ServeHTTP(port int, booter Booter, ldlinux []byte) error {
+func ServeHTTP(port int, booter *coreOSBooter, ldlinux []byte) error {
 	s := &httpServer{
 		booter:  booter,
 		ldlinux: ldlinux,
