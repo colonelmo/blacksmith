@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"text/template"
+
+	"github.com/cafebazaar/blacksmith/logging"
 )
 
 type Repo struct {
@@ -32,11 +34,12 @@ func findFiles(path string) ([]string, error) {
 }
 
 func FromPath(dataSources map[string]DataSource, tmplPath string) (*Repo, error) {
+	//	logging.Log("REPO", "In FromPath")
 	files, err := findFiles(tmplPath)
 	if err != nil {
 		return nil, err
 	}
-
+	var therepos string
 	t := template.New("")
 	t.Delims("<<", ">>")
 	t.Funcs(map[string]interface{}{
@@ -68,6 +71,13 @@ func FromPath(dataSources map[string]DataSource, tmplPath string) (*Repo, error)
 	if err != nil {
 		return nil, err
 	}
+
+	//	logging.Log("REPO", "when assigning")
+	for k, _ := range dataSources {
+		therepos += k + " "
+	}
+	//	logging.Log("", "")
+	logging.Log("REPO", therepos)
 	return &Repo{
 		templates:   t,
 		dataSources: dataSources,

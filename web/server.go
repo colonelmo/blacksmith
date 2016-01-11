@@ -11,10 +11,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/elazarl/go-bindata-assetfs"
+	//	"github.com/elazarl/go-bindata-assetfs"
 
 	"github.com/cafebazaar/blacksmith/datasource"
 	"github.com/cafebazaar/blacksmith/dhcp"
+	"github.com/cafebazaar/blacksmith/logging"
 	"github.com/gorilla/mux"
 )
 
@@ -122,8 +123,11 @@ func (a *RestServer) Mux() *mux.Router {
 	mux.HandleFunc("/files", a.files).Methods("GET")
 	mux.HandleFunc("/files", a.deleteFile).Methods("DELETE")
 	mux.PathPrefix("/files/").Handler(http.StripPrefix("/files/", http.FileServer(http.Dir(filepath.Join(a.runtimeConfig.WorkspacePath, "files")))))
-	mux.PathPrefix("/ui/").Handler(http.StripPrefix("/ui/", http.FileServer(&assetfs.AssetFS{Asset: Asset, AssetDir: AssetDir, Prefix: "/web/ui"})))
 
+	pwd, _ := os.Getwd()
+	mux.PathPrefix("/ui/").Handler(http.FileServer(http.Dir(filepath.Join(pwd, "web/"))))
+	//	mux.PathPrefix("/ui/").Handler(http.StripPrefix("/ui/", http.FileServer(&assetfs.AssetFS{Asset: Asset, AssetDir: AssetDir, Prefix: "/web/ui"})))
+	logging.Log("HTTP Server", string(http.Dir(filepath.Join(pwd, "web"))))
 	return mux
 }
 

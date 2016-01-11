@@ -204,6 +204,7 @@ func main() {
 	// serving http booter
 	go func() {
 		repo, err := cloudconfig.FromPath(datasources, path.Join(*workspacePathFlag, "config/bootparams"))
+		logging.Log(":D", "bootparams")
 		if err != nil {
 			log.Fatalln(err)
 		}
