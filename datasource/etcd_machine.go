@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -35,8 +34,7 @@ func (m *EtcdMachine) IP() (net.IP, error) {
 
 // Name returns this machine's hostname
 func (m *EtcdMachine) Name() string {
-	tempName := "node" + m.Mac().String()
-	return strings.Replace(tempName, ":", "", -1)
+	return nodeNameFromMac(m.Mac().String())
 }
 
 func unixNanoStringToTime(unixNano string) (time.Time, error) {
@@ -115,7 +113,7 @@ func (m *EtcdMachine) DeleteFlag(key string) error {
 }
 
 func (m *EtcdMachine) prefixify(str string) string {
-	return "machines/" + m.Mac().String() + "/" + str
+	return "machines/" + m.Name() + "/" + str
 }
 
 func (m *EtcdMachine) selfGet(key string) (string, error) {

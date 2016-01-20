@@ -1,11 +1,12 @@
 package cloudconfig
 
 import (
+	"bytes"
 	"net"
 	"strings"
 	//	"net/url"
 	//	"fmt"
-	"bytes"
+
 	"net/http"
 	"path"
 	"sync"
@@ -37,6 +38,18 @@ type bootParamsDataSource struct {
 	currentMachine datasource.Machine
 }
 
+//addColonToMacAddress adds colons to a colon-less mac address
+func addColonToMacAddress(colonLessMac string) string {
+	var tmpmac bytes.Buffer
+	for i := 0; i < 12; i++ { // mac address length
+		tmpmac.WriteString(colonLessMac[i : i+1])
+		if i%2 == 1 {
+			tmpmac.WriteString(":")
+		}
+	}
+	return tmpmac.String()[:len(tmpmac.String())-1] // exclude the last colon
+}
+
 func (datasource *cloudConfigDataSource) handler(w http.ResponseWriter, r *http.Request) {
 	logging.LogHTTPRequest(debugTag, r)
 
@@ -57,14 +70,7 @@ func (datasource *cloudConfigDataSource) handler(w http.ResponseWriter, r *http.
 
 	clientMacAddressString := req[1]
 	if strings.Index(clientMacAddressString, ":") == -1 {
-		var tmpmac bytes.Buffer
-		for i := 0; i < 12; i++ { // mac address length
-			tmpmac.WriteString(clientMacAddressString[i : i+1])
-			if i%2 == 1 {
-				tmpmac.WriteString(":")
-			}
-		}
-		clientMacAddressString = tmpmac.String()[:len(tmpmac.String())-1]
+		clientMacAddressString = addColonToMacAddress(clientMacAddressString)
 	}
 	clientMac, err := net.ParseMAC(clientMacAddressString)
 	if err != nil {
@@ -94,6 +100,7 @@ func (datasource *cloudConfigDataSource) handler(w http.ResponseWriter, r *http.
 	if value, exists := queryMap["validate"]; req[0] == "cloud" && (!exists || value != "false") {
 		config += validateCloudConfig(config)
 	}
+	logging.Log(debugTag, "Cloudconfig done")
 
 	w.Write([]byte(config))
 }

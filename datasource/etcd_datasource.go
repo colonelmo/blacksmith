@@ -1,6 +1,7 @@
 package datasource
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -63,7 +64,9 @@ func (ds *EtcdDataSource) Machines() ([]Machine, error) {
 	ret := make([]Machine, 0)
 	for _, ent := range response.Node.Nodes {
 		pathToMachineDir := ent.Key
-		macStr := pathToMachineDir[strings.LastIndex(pathToMachineDir, "/")+1:]
+		machineName := pathToMachineDir[strings.LastIndex(pathToMachineDir, "/")+1:]
+		//machine name : nodeMA:CA:DD:RE:SS
+		macStr := addColonToMacAddress(machineName)
 		macAddr, err := net.ParseMAC(macStr)
 		if err != nil {
 			return nil, err
@@ -85,11 +88,11 @@ func (ds *EtcdDataSource) GetMachine(mac net.HardwareAddr) (Machine, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	response, err := ds.keysAPI.Get(ctx, ds.prefixify(path.Join("machines/"+mac.String())), nil)
+	response, err := ds.keysAPI.Get(ctx, ds.prefixify(path.Join("machines/"+nodeNameFromMac(mac.String()))), nil)
 	if err != nil {
 		return nil, false
 	}
-	if response.Node.Key[strings.LastIndex(response.Node.Key, "/")+1:] == mac.String() {
+	if response.Node.Key[strings.LastIndex(response.Node.Key, "/")+1:] == nodeNameFromMac(mac.String()) {
 		return &EtcdMachine{mac, ds}, true
 	}
 	return nil, false
@@ -121,19 +124,19 @@ func (ds *EtcdDataSource) CreateMachine(mac net.HardwareAddr, ip net.IP) (Machin
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
+	ds.keysAPI.Set(ctx, ds.prefixify("machines/"+machine.Name()), "", &etcd.SetOptions{Dir: true})
 
-	ds.keysAPI.Set(ctx, ds.prefixify("machines/"+machine.Mac().String()), "", &etcd.SetOptions{Dir: true})
 	ctx1, cancel1 := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel1()
-	ds.keysAPI.Set(ctx1, ds.prefixify("machines/"+machine.Mac().String()+"/_IP"), ip.String(), &etcd.SetOptions{})
+	ds.keysAPI.Set(ctx1, ds.prefixify("machines/"+machine.Name()+"/_IP"), ip.String(), &etcd.SetOptions{})
 
 	ctx2, cancel2 := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel2()
-	ds.keysAPI.Set(ctx2, ds.prefixify("machines/"+machine.Mac().String()+"/_name"), machine.Name(), &etcd.SetOptions{})
+	ds.keysAPI.Set(ctx2, ds.prefixify("machines/"+machine.Name()+"/_mac"), machine.Mac().String(), &etcd.SetOptions{})
 
 	ctx3, cancel3 := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel3()
-	ds.keysAPI.Set(ctx3, ds.prefixify("machines/"+machine.Mac().String()+"/_first_seen"),
+	ds.keysAPI.Set(ctx3, ds.prefixify("machines/"+machine.Name()+"/_first_seen"),
 		strconv.FormatInt(time.Now().UnixNano(), 10), &etcd.SetOptions{})
 	machine.CheckIn()
 	machine.SetFlag("state", "unknown")
@@ -427,12 +430,12 @@ func (ds *EtcdDataSource) store(m Machine, ip net.IP) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	ds.keysAPI.Set(ctx, ds.prefixify("machines/"+m.Mac().String()+"/_IP"),
+	ds.keysAPI.Set(ctx, ds.prefixify("machines/"+m.Name()+"/_IP"),
 		ip.String(), &etcd.SetOptions{})
 
 	ctx1, cancel1 := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel1()
-	ds.keysAPI.Set(ctx1, ds.prefixify("machines/"+m.Mac().String()+"/_last_seen"),
+	ds.keysAPI.Set(ctx1, ds.prefixify("machines/"+m.Name()+"/_last_seen"),
 		strconv.FormatInt(time.Now().UnixNano(), 10), &etcd.SetOptions{})
 }
 
@@ -506,6 +509,23 @@ func (ds *EtcdDataSource) Request(nic string, currentIP net.IP) (net.IP, error) 
 	macAddress, _ := net.ParseMAC(nic)
 	ds.CreateMachine(macAddress, currentIP)
 	return currentIP, nil
+}
+
+//addColonToMacAddress adds colons to a colon-less mac address
+func addColonToMacAddress(colonLessMac string) string {
+	var tmpmac bytes.Buffer
+	for i := 0; i < 12; i++ { // mac address length
+		tmpmac.WriteString(colonLessMac[i : i+1])
+		if i%2 == 1 {
+			tmpmac.WriteString(":")
+		}
+	}
+	return tmpmac.String()[:len(tmpmac.String())-1] // exclude the last colon
+}
+
+func nodeNameFromMac(mac string) string {
+	tempName := "node" + mac
+	return strings.Replace(tempName, ":", "", -1)
 }
 
 // NewEtcdDataSource gives blacksmith the ability to use an etcd endpoint as
